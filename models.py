@@ -2,8 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from segmentation_models_pytorch.base import (ClassificationHead,
-                                              SegmentationHead,
+from segmentation_models_pytorch.base import (SegmentationHead,
                                               SegmentationModel)
 from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.pan.decoder import ConvBnRelu
@@ -240,3 +239,120 @@ class UP(nn.Module):
                              align_corners=self.align_corners)
         conv = self.conv1(x)
         return y_up + conv
+
+
+class PylonTA(nn.Module):
+    def __init__(self,
+                 backbone='resnet50',
+                 pretrain='imagenet',
+                 n_dec_ch=128,
+                 n_in=1,
+                 n_out=14,
+                 loss_pred_hidden_size=128,
+                 detach=True,):
+        super(PylonTA, self).__init__()
+        
+        self.encoder = get_encoder(
+            backbone,
+            in_channels=n_in,
+            depth=5,
+            weights=pretrain,
+        )
+
+        self.decoder = PylonTADecoder(
+            encoder_channels=self.encoder.out_channels,
+            decoder_channels=n_dec_ch,
+            upscale_mode='bilinear',
+            align_corners=True,
+        )
+
+        self.segmentation_head = SegmentationHead(in_channels=n_dec_ch,
+                                                  out_channels=n_out,
+                                                  activation=None,
+                                                  kernel_size=1,
+                                                  upsampling=1)
+
+        self.pool = nn.AdaptiveMaxPool2d(1)
+
+        self.loss_predictor = LossPredictor(list(self.encoder.out_channels) + [n_dec_ch] * 4, loss_pred_hidden_size, detach)
+
+    def forward(self, x):
+
+        encoder_features = list(self.encoder(x))
+        decoder_features = list(self.decoder(*encoder_features))
+        # enforce float32 is a good idea
+        # because if the loss function involves a reduction operation
+        # it would be harmful, this prevents the problem
+        seg = self.segmentation_head(decoder_features[0]).float()
+        pred = self.pool(seg)
+        pred = torch.flatten(pred, start_dim=1)
+
+        features = encoder_features + decoder_features
+        loss_pred = self.loss_predictor(features)
+
+        return {
+            'pred': pred,
+            'seg': seg,
+            'loss_pred': loss_pred,
+        }
+
+
+class PylonTADecoder(PylonDecoder):
+    """return 
+    """
+    def __init__(
+            self,
+            encoder_channels,
+            decoder_channels,
+            upscale_mode: str = 'bilinear',
+            align_corners=True,
+    ):
+        super(PylonTADecoder, self).__init__(encoder_channels, decoder_channels, upscale_mode, align_corners)
+
+    def forward(self, *features):
+        bottleneck = features[-1]
+        x5 = self.pa(bottleneck)  # 1/32
+        x4 = self.up3(features[-2], x5)  # 1/16
+        x3 = self.up2(features[-3], x4)  # 1/8
+        x2 = self.up1(features[-4], x3)  # 1/4
+
+        return x2, x3, x4, x5
+
+
+class LossPredictor(nn.Module):
+    def __init__(
+            self,
+            feature_channels,
+            hidden_size=128,
+            detach=True,
+        ):
+        super(LossPredictor, self).__init__()
+
+        self.feature_blocks = self.get_feature_blocks(feature_channels, hidden_size)
+        self.loss_predictor = nn.Linear(hidden_size*len(feature_channels), 1)
+        self.detach = detach
+
+    def forward(self, features):
+        if self.detach:
+            features = [f.detach() for f in features]
+        
+        pooled_features = torch.cat([fb(f) for fb, f in zip(self.feature_blocks, features)], 1)
+        loss = self.loss_predictor(pooled_features)
+
+        return loss
+
+    def get_feature_blocks(self, feature_channels, hidden_size):
+        feature_blocks = []
+        for fc in feature_channels:
+            feature_block = nn.Sequential(
+                nn.AdaptiveAvgPool2d(1),
+                nn.Flatten(1),
+                nn.Linear(fc, hidden_size),
+                nn.ReLU(),
+            )
+            feature_blocks.append(feature_block)
+        
+        feature_blocks = nn.ModuleList(feature_blocks)
+
+        return feature_blocks
+
