@@ -73,7 +73,7 @@ def run_train(
         batch_train_acc_rec = []
 
         for batch_labeled_train_X, batch_labeled_train_y in tqdm(labeled_train_loader):
-            batch_unlabeled_train_X = next(unlabeled_train_iter)
+            batch_unlabeled_train_X, _ = next(unlabeled_train_iter)
             batch_train_task_loss, batch_train_vae_loss, batch_train_disc_loss, batch_train_acc = train(
                 task_model,
                 vae,
@@ -112,7 +112,7 @@ def run_train(
         batch_val_acc_rec = []
 
         for batch_labeled_val_X, batch_labeled_val_y in labeled_val_loader:
-            batch_unlabeled_val_X = next(unlabeled_val_iter)
+            batch_unlabeled_val_X, _ = next(unlabeled_val_iter)
             batch_val_task_loss, batch_val_vae_loss, batch_val_disc_loss, batch_val_acc = evaluate(
                 task_model,
                 vae,
