@@ -27,8 +27,8 @@ class RankLoss(nn.Module):
 
         target_losses = self.bce_loss(output, target).detach()
 
-        pred_losses_i, pred_losses_j = torch.split(pred_losses, 2)
-        target_losses_i, target_losses_j = torch.split(target_losses, 2)
+        pred_losses_i, pred_losses_j = torch.chunk(pred_losses, 2)
+        target_losses_i, target_losses_j = torch.chunk(target_losses, 2)
 
         pred_diff = pred_losses_i - pred_losses_j
         target_labels = (target_losses_i > target_losses_j).float()
