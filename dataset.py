@@ -10,8 +10,8 @@ cv2.setNumThreads(1)
 MEAN = [0.4984]
 SD = [0.2483]
 
-def get_array_loader(X, y, batch_size, transform, shuffle=False):
-    return DataLoader(CXRArray(X, y, transform), batch_size=batch_size, shuffle=shuffle, num_workers=2)
+def get_array_loader(X, y, batch_size, transform, shuffle=False, drop_last=False, num_workers=2):
+    return DataLoader(CXRArray(X, y, transform), batch_size=batch_size, shuffle=shuffle, drop_last=drop_last, num_workers=num_workers)
 
 
 class CXRArray(Dataset):
