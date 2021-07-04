@@ -312,7 +312,7 @@ def train(
         disc_output_u = disc(z_r_u)
         
         unlabeled_vae_loss = vae_criterion(unlabeled_X, recon_u, mu_u, logvar_u) * unlabeled_factor
-        unlabeled_disc_loss = disc_criterion(disc_output_u, torch.zeroes_like(disc_output_u)) * unlabeled_factor
+        unlabeled_disc_loss = disc_criterion(disc_output_u, torch.zeros_like(disc_output_u)) * unlabeled_factor
 
     if grad_scaler is not None:
 
