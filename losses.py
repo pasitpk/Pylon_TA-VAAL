@@ -20,7 +20,7 @@ class RankLoss(nn.Module):
         super(RankLoss, self).__init__()
 
         self.lamb = lamb
-        self.bce_loss = nn.BCEWithLogitsLoss(reduction=None)
+        self.bce_loss = nn.BCEWithLogitsLoss(reduction='none')
         self.rank_loss = nn.BCEWithLogitsLoss()
 
     def forward(self, pred_losses, output, target):
