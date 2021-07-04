@@ -31,8 +31,12 @@ def run_train(
     vae_optimizer,
     disc_optimizer,
     epochs,
-    lr_scheduler=None,
-    lr_scheduler_target='val_loss',
+    task_lr_scheduler=None,
+    task_lr_scheduler_target='val_loss',
+    vae_lr_scheduler=None,
+    vae_lr_scheduler_target='val_loss',
+    disc_lr_scheduler=None,
+    disc_lr_scheduler_target='val_loss',
     train_patient=None,
     val_patient=None,
     device='cuda',
@@ -140,15 +144,35 @@ def run_train(
         val_disc_loss_rec.append(np.mean(batch_val_disc_loss_rec))
         val_acc_rec.append(np.mean(np.stack(batch_val_acc_rec), axis=0))
 
-        if (lr_scheduler is not None) and (lr_scheduler_target is not None):
+        if (task_lr_scheduler is not None) and (task_lr_scheduler_target is not None):
 
-            if lr_scheduler_target == 'val_loss':
-                lr_schd_target = val_loss_rec[-1]
+            if task_lr_scheduler_target == 'val_loss':
+                task_lr_schd_target = val_task_loss_rec[-1]
 
-            elif lr_scheduler_target in ('loss', 'train_loss'):
-                lr_schd_target = train_loss_rec[-1]
+            elif task_lr_scheduler_target in ('loss', 'train_loss'):
+                task_lr_schd_target = train_task_loss_rec[-1]
 
-            lr_scheduler.step(lr_schd_target)
+            task_lr_scheduler.step(task_lr_schd_target)
+
+        if (vae_lr_scheduler is not None) and (vae_lr_scheduler_target is not None):
+
+            if vae_lr_scheduler_target == 'val_loss':
+                vae_lr_schd_target = val_vae_loss_rec[-1]
+
+            elif vae_lr_scheduler_target in ('loss', 'train_loss'):
+                vae_lr_schd_target = train_vae_loss_rec[-1]
+
+            vae_lr_scheduler.step(vae_lr_schd_target)
+
+        if (disc_lr_scheduler is not None) and (disc_lr_scheduler_target is not None):
+
+            if disc_lr_scheduler_target == 'val_loss':
+                disc_lr_schd_target = val_disc_loss_rec[-1]
+
+            elif disc_lr_scheduler_target in ('loss', 'train_loss'):
+                disc_lr_schd_target = train_disc_loss_rec[-1]
+
+            disc_lr_scheduler.step(disc_lr_schd_target)
 
         if train_loss_rec[-1] > train_best_loss:
             if train_patient is not None:
@@ -207,7 +231,9 @@ def run_train(
                 'task_model_optimizer_state_dict': task_model_optimizer.state_dict(),
                 'vae_optimizer_state_dict': vae_optimizer.state_dict(),
                 'disc_optimizer_state_dict': disc_optimizer.state_dict(),
-                'lr_scheduler_state_dict': lr_scheduler.state_dict() if lr_scheduler is not None else None,
+                'task_lr_scheduler_state_dict': task_lr_scheduler.state_dict() if task_lr_scheduler is not None else None,
+                'vae_lr_scheduler_state_dict': vae_lr_scheduler.state_dict() if vae_lr_scheduler is not None else None,
+                'disc_lr_scheduler_state_dict': disc_lr_scheduler.state_dict() if disc_lr_scheduler is not None else None,
                 'grad_scaler_state_dict': grad_scaler.state_dict() if grad_scaler is not None else None,
                 'train_loss_rec': train_loss_rec,
                 'val_loss_rec': val_loss_rec,
