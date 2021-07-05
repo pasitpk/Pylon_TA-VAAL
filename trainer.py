@@ -277,7 +277,6 @@ def train(
 
     task_model_optimizer.zero_grad()
     vae_optimizer.zero_grad()
-    disc_optimizer.zero_grad()
 
     # labeled data
     with autocast(enabled=grad_scaler is not None):
@@ -288,22 +287,18 @@ def train(
         
         task_loss = task_criterion(task_output_l['pred'], labeled_y)
         rank_loss = rank_criterion(task_output_l['loss_pred'], task_output_l['pred'], labeled_y)
-        labeled_vae_loss = vae_criterion(labeled_X, recon_l, mu_l, logvar_l) * labeled_factor
-        labeled_disc_loss = disc_criterion(disc_output_l, torch.ones_like(disc_output_l)) * labeled_factor
+        labeled_vae_loss = vae_criterion(labeled_X, recon_l, mu_l, logvar_l, disc_output_l) * labeled_factor
 
     if grad_scaler is not None:
         grad_scaler.scale(task_loss).backward(retain_graph=True)
         grad_scaler.scale(rank_loss).backward(retain_graph=True)
         grad_scaler.scale(labeled_vae_loss).backward(retain_graph=True)
-        grad_scaler.scale(labeled_disc_loss).backward()
     
     else:
         task_loss.backward(retain_graph=True)
         rank_loss.backward(retain_graph=True)
         labeled_vae_loss.backward(retain_graph=True)
-        labeled_disc_loss.backward()
-
-
+       
     # unlabeled data
     with autocast(enabled=grad_scaler is not None):
         task_output_u = task_model(unlabeled_X)
@@ -311,12 +306,42 @@ def train(
         recon_u, z_r_u, mu_u, logvar_u = vae(unlabeled_X, loss_rank_u)
         disc_output_u = disc(z_r_u)
         
-        unlabeled_vae_loss = vae_criterion(unlabeled_X, recon_u, mu_u, logvar_u) * unlabeled_factor
+        unlabeled_vae_loss = vae_criterion(unlabeled_X, recon_u, mu_u, logvar_u, disc_output_u) * unlabeled_factor
+        
+    if grad_scaler is not None:
+        grad_scaler.scale(unlabeled_vae_loss).backward(retain_graph=True)
+
+    else:
+        unlabeled_vae_loss.backward(retain_graph=True)
+
+    # discriminator
+    disc_optimizer.zero_grad()
+
+    # labeled data
+    with autocast(enabled=grad_scaler is not None):
+
+        with torch.no_grad():
+            _, z_r_l, _, _ = vae(labeled_X, loss_rank_l)
+
+        disc_output_l = disc(z_r_l)    
+        labeled_disc_loss = disc_criterion(disc_output_l, torch.ones_like(disc_output_l)) * labeled_factor
+    
+    if grad_scaler is not None:
+        grad_scaler.scale(labeled_disc_loss).backward()
+    
+    else:
+        labeled_disc_loss.backward()
+
+    # unlabeled data
+    with autocast(enabled=grad_scaler is not None):
+
+        with torch.no_grad():
+            _, z_r_u, _, _ = vae(unlabeled_X, loss_rank_u)
+
+        disc_output_u = disc(z_r_u)
         unlabeled_disc_loss = disc_criterion(disc_output_u, torch.zeros_like(disc_output_u)) * unlabeled_factor
 
     if grad_scaler is not None:
-
-        grad_scaler.scale(unlabeled_vae_loss).backward(retain_graph=True)
         grad_scaler.scale(unlabeled_disc_loss).backward()
 
         grad_scaler.step(task_model_optimizer)
@@ -326,13 +351,11 @@ def train(
         grad_scaler.update()
 
     else:
-        unlabeled_vae_loss.backward(retain_graph=True)
         unlabeled_disc_loss.backward()
 
         task_model_optimizer.step()
         vae_optimizer.step()
         disc_optimizer.step()
-
 
     total_task_loss = task_loss + rank_loss
     vae_loss = labeled_vae_loss + unlabeled_vae_loss

@@ -38,17 +38,23 @@ class RankLoss(nn.Module):
 
 class VAELoss(nn.Module):
 
-    def __init__(self, lamb=1, beta=1):        
+    def __init__(self, lamb=1, trd=1, adv=10, beta=1):        
          super(VAELoss, self).__init__()
 
          self.lamb = lamb
+         self.trd = trd
+         self.adv = adv
          self.beta = beta
          self.mse_loss = nn.MSELoss()
+         self.bce_loss = nn.BCEWithLogitsLoss()
 
-    def forward(self, x, recon, mu, logvar):
+    def forward(self, x, recon, mu, logvar, disc_output):
         mse = self.mse_loss(recon, x)
         kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        return self.lamb * (mse + kld * self.beta)
+        trd_loss = mse + self.beta * kld
+        adv_loss = self.bce_loss(disc_output, torch.ones_like(disc_output))
+        vae_loss = self.trd * trd_loss + self.adv * adv_loss
+        return self.lamb * vae_loss
 
 
 class DiscLoss(nn.Module):
