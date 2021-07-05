@@ -399,7 +399,7 @@ def evaluate(
     
     task_loss = task_criterion(task_output_l['pred'], labeled_y)
     rank_loss = rank_criterion(task_output_l['loss_pred'], task_output_l['pred'], labeled_y)
-    labeled_vae_loss = vae_criterion(labeled_X, recon_l, mu_l, logvar_l) * labeled_factor
+    labeled_vae_loss = vae_criterion(labeled_X, recon_l, mu_l, logvar_l, z_r_l) * labeled_factor
     labeled_disc_loss = disc_criterion(disc_output_l, torch.ones_like(disc_output_l)) * labeled_factor
 
     # unlabeled data
@@ -408,7 +408,7 @@ def evaluate(
     recon_u, z_r_u, mu_u, logvar_u = vae(unlabeled_X, loss_rank_u)
     disc_output_u = disc(z_r_u)
     
-    unlabeled_vae_loss = vae_criterion(unlabeled_X, recon_u, mu_u, logvar_u) * unlabeled_factor
+    unlabeled_vae_loss = vae_criterion(unlabeled_X, recon_u, mu_u, logvar_u, z_r_u) * unlabeled_factor
     unlabeled_disc_loss = disc_criterion(disc_output_u, torch.zeros_like(disc_output_u)) * unlabeled_factor
     
     total_task_loss = task_loss + rank_loss
