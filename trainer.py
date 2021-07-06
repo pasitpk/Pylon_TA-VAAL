@@ -37,8 +37,8 @@ def run_train(
     vae_lr_scheduler_target='val_loss',
     disc_lr_scheduler=None,
     disc_lr_scheduler_target='val_loss',
-    train_patient=None,
-    val_patient=None,
+    train_patience=None,
+    val_patience=None,
     device='cuda',
     grad_scaler=None,
 ):
@@ -51,7 +51,7 @@ def run_train(
     train_vae_loss_rec = []
     train_disc_loss_rec = []
     train_acc_rec = []
-    cur_train_patient = train_patient
+    cur_train_patience = train_patience
     train_best_loss = np.inf
 
     val_loss_rec = []
@@ -59,12 +59,12 @@ def run_train(
     val_vae_loss_rec = []
     val_disc_loss_rec = []
     val_acc_rec = []
-    cur_val_patient = val_patient
+    cur_val_patience = val_patience
     val_best_loss = np.inf
 
     for epoch in range(1, epochs + 1):
 
-        if cur_train_patient == 0 or cur_val_patient == 0:
+        if cur_train_patience == 0 or cur_val_patience == 0:
             print('===== Early stop was reached =====')
             break
 
@@ -175,24 +175,24 @@ def run_train(
             disc_lr_scheduler.step(disc_lr_schd_target)
 
         if train_loss_rec[-1] > train_best_loss:
-            if train_patient is not None:
-                cur_train_patient -= 1
+            if train_patience is not None:
+                cur_train_patience -= 1
 
         else:
             train_best_loss = train_loss_rec[-1]
-            cur_train_patient = train_patient
+            cur_train_patience = train_patience
 
         if val_loss_rec[-1] > val_best_loss:
-            if val_patient is not None:
-                cur_val_patient -= 1
+            if val_patience is not None:
+                cur_val_patience -= 1
 
         elif val_loss_rec[-1] >= train_loss_rec[-1]:
             val_best_loss = val_loss_rec[-1]
-            cur_val_patient = val_patient
+            cur_val_patience = val_patience
 
             # to extend training
             train_best_loss = train_loss_rec[-1]
-            cur_train_patient = train_patient
+            cur_train_patience = train_patience
 
             prev_checkpoints = os.listdir(save_dir)
             for prev_checkpoint in prev_checkpoints:
@@ -220,11 +220,11 @@ def run_train(
             val_acc_rec[-1][0],
         ))
 
-        if new_best or epoch == epochs or cur_train_patient == 0 or cur_val_patient == 0:
+        if new_best or epoch == epochs or cur_train_patience == 0 or cur_val_patience == 0:
             torch.save({
                 'epoch': epoch,
-                'cur_train_patient': cur_train_patient,
-                'cur_val_patient': cur_val_patient,
+                'cur_train_patience': cur_train_patience,
+                'cur_val_patience': cur_val_patience,
                 'task_model_state_dict': task_model.state_dict(),
                 'vae_state_dict': vae.state_dict(),
                 'disc_state_dict': disc.state_dict(),
